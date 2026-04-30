@@ -18,11 +18,14 @@ class PlaylistsScreen extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('Playlists',
-                    style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold)),
+                child: Text(
+                  'Playlists',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               Expanded(
                 child: player.playlists.isEmpty
@@ -33,11 +36,19 @@ class PlaylistsScreen extends StatelessWidget {
                             const Icon(Icons.queue_music_rounded,
                                 color: AppTheme.textHint, size: 72),
                             const SizedBox(height: 12),
-                            const Text('No playlists yet',
-                                style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                            const Text(
+                              'No playlists yet',
+                              style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 16),
+                            ),
                             const SizedBox(height: 6),
-                            Text('Tap + to create one',
-                                style: TextStyle(color: AppTheme.textHint, fontSize: 13)),
+                            Text(
+                              'Tap + to create one',
+                              style: TextStyle(
+                                  color: AppTheme.textHint,
+                                  fontSize: 13),
+                            ),
                           ],
                         ),
                       )
@@ -47,41 +58,55 @@ class PlaylistsScreen extends StatelessWidget {
                           final playlist = player.playlists[i];
                           return Dismissible(
                             key: Key(playlist.id.toString()),
-                            direction: DismissDirection.endToStart,
+                            direction:
+                                DismissDirection.endToStart,
                             background: Container(
                               alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.only(right: 20),
-                              color: Colors.red.withOpacity(0.2),
-                              child: const Icon(Icons.delete_rounded, color: Colors.redAccent),
+                              padding: const EdgeInsets.only(
+                                  right: 20),
+                              color:
+                                  Colors.red.withOpacity(0.2),
+                              child: const Icon(
+                                  Icons.delete_rounded,
+                                  color: Colors.redAccent),
                             ),
-                            onDismissed: (_) => player.deletePlaylist(playlist),
+                            onDismissed: (_) =>
+                                player.deletePlaylist(playlist),
                             child: ListTile(
                               leading: Container(
                                 width: 52,
                                 height: 52,
                                 decoration: BoxDecoration(
                                   color: AppTheme.bgElevated,
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius:
+                                      BorderRadius.circular(10),
                                 ),
-                                child: playlist.songs.isNotEmpty
-                                    ? AlbumArtWidget(
-                                        albumId: playlist.songs.first.albumId,
-                                        size: 52,
-                                        borderRadius: 10,
-                                      )
-                                    : const Icon(Icons.playlist_play_rounded,
-                                        color: AppTheme.tealPrimary, size: 28),
+                                child: const Icon(
+                                  Icons.playlist_play_rounded,
+                                  color: AppTheme.tealPrimary,
+                                  size: 28,
+                                ),
                               ),
-                              title: Text(playlist.name,
-                                  style: const TextStyle(
-                                      color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
-                              subtitle: Text('${playlist.songCount} songs',
-                                  style: const TextStyle(
-                                      color: AppTheme.textSecondary, fontSize: 12)),
+                              title: Text(
+                                playlist.name,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${playlist.songCount} songs',
+                                style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => PlaylistDetailScreen(playlist: playlist),
+                                  builder: (_) =>
+                                      PlaylistDetailScreen(
+                                          playlist: playlist),
                                 ),
                               ),
                             ),
@@ -91,12 +116,12 @@ class PlaylistsScreen extends StatelessWidget {
               ),
             ],
           ),
-          // FAB
           Positioned(
             bottom: 12,
             right: 16,
             child: FloatingActionButton(
-              onPressed: () => _showCreateDialog(context, player),
+              onPressed: () =>
+                  _showCreateDialog(context, player),
               backgroundColor: AppTheme.tealPrimary,
               foregroundColor: AppTheme.bgPrimary,
               child: const Icon(Icons.add_rounded),
@@ -107,7 +132,8 @@ class PlaylistsScreen extends StatelessWidget {
     );
   }
 
-  void _showCreateDialog(BuildContext context, PlayerProvider player) {
+  void _showCreateDialog(
+      BuildContext context, PlayerProvider player) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -117,12 +143,15 @@ class PlaylistsScreen extends StatelessWidget {
           controller: controller,
           autofocus: true,
           style: const TextStyle(color: AppTheme.textPrimary),
-          decoration: const InputDecoration(hintText: 'Playlist name'),
+          decoration:
+              const InputDecoration(hintText: 'Playlist name'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+            child: const Text('Cancel',
+                style:
+                    TextStyle(color: AppTheme.textSecondary)),
           ),
           TextButton(
             onPressed: () {
@@ -132,7 +161,9 @@ class PlaylistsScreen extends StatelessWidget {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Create', style: TextStyle(color: AppTheme.tealPrimary)),
+            child: const Text('Create',
+                style:
+                    TextStyle(color: AppTheme.tealPrimary)),
           ),
         ],
       ),
@@ -140,7 +171,6 @@ class PlaylistsScreen extends StatelessWidget {
   }
 }
 
-// ─── Playlist Detail ──────────────────────────────────────────────────────────
 class PlaylistDetailScreen extends StatelessWidget {
   final Playlist playlist;
   const PlaylistDetailScreen({super.key, required this.playlist});
@@ -153,14 +183,14 @@ class PlaylistDetailScreen extends StatelessWidget {
           title: Text(playlist.name),
           actions: [
             IconButton(
-              icon: const Icon(Icons.add_rounded, color: AppTheme.tealPrimary),
+              icon: const Icon(Icons.add_rounded,
+                  color: AppTheme.tealPrimary),
               onPressed: () => _showAddSongs(context, player),
             ),
           ],
         ),
         body: Column(
           children: [
-            // Play all button
             if (playlist.songs.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(12),
@@ -168,7 +198,8 @@ class PlaylistDetailScreen extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      player.playSong(playlist.songs.first, playlist.songs, 0);
+                      player.playSong(playlist.songs.first,
+                          playlist.songs, 0);
                       Navigator.pop(context);
                     },
                     icon: const Icon(Icons.play_arrow_rounded),
@@ -176,8 +207,11 @@ class PlaylistDetailScreen extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.tealPrimary,
                       foregroundColor: AppTheme.bgPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -185,29 +219,41 @@ class PlaylistDetailScreen extends StatelessWidget {
             Expanded(
               child: playlist.songs.isEmpty
                   ? const Center(
-                      child: Text('No songs — tap + to add',
-                          style: TextStyle(color: AppTheme.textSecondary)),
+                      child: Text(
+                        'No songs — tap + to add',
+                        style: TextStyle(
+                            color: AppTheme.textSecondary),
+                      ),
                     )
                   : ListView.builder(
                       itemCount: playlist.songs.length,
                       itemBuilder: (context, i) {
                         final song = playlist.songs[i];
                         return Dismissible(
-                          key: Key('${playlist.id}_${song.id}'),
-                          direction: DismissDirection.endToStart,
+                          key: Key(
+                              '${playlist.id}_${song.id}'),
+                          direction:
+                              DismissDirection.endToStart,
                           background: Container(
                             alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            color: Colors.red.withOpacity(0.2),
-                            child: const Icon(Icons.remove_circle_rounded,
+                            padding: const EdgeInsets.only(
+                                right: 20),
+                            color:
+                                Colors.red.withOpacity(0.2),
+                            child: const Icon(
+                                Icons.remove_circle_rounded,
                                 color: Colors.redAccent),
                           ),
-                          onDismissed: (_) => player.removeSongFromPlaylist(playlist, song),
+                          onDismissed: (_) => player
+                              .removeSongFromPlaylist(
+                                  playlist, song),
                           child: SongTile(
                             song: song,
                             songList: playlist.songs,
                             index: i,
-                            isActive: player.currentSong?.id == song.id,
+                            isActive:
+                                player.currentSong?.id ==
+                                    song.id,
                           ),
                         );
                       },
@@ -219,13 +265,15 @@ class PlaylistDetailScreen extends StatelessWidget {
     );
   }
 
-  void _showAddSongs(BuildContext context, PlayerProvider player) {
+  void _showAddSongs(
+      BuildContext context, PlayerProvider player) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.bgSurface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => DraggableScrollableSheet(
         expand: false,
@@ -234,14 +282,23 @@ class PlaylistDetailScreen extends StatelessWidget {
         builder: (_, controller) => Column(
           children: [
             const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(
-              color: AppTheme.textHint, borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.textHint,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 12),
-            const Text('Add Songs',
-                style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
+            const Text(
+              'Add Songs',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
@@ -249,26 +306,53 @@ class PlaylistDetailScreen extends StatelessWidget {
                 itemCount: player.allSongs.length,
                 itemBuilder: (ctx, i) {
                   final song = player.allSongs[i];
-                  final inPlaylist = playlist.songs.contains(song);
+                  final inPlaylist =
+                      playlist.songs.contains(song);
                   return ListTile(
-                    leading: AlbumArtWidget(albumId: song.albumId, size: 44),
-                    title: Text(song.title,
-                        style: TextStyle(
-                            color: inPlaylist
-                                ? AppTheme.tealPrimary
-                                : AppTheme.textPrimary,
-                            fontSize: 14)),
-                    subtitle: Text(song.artist,
-                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        color: AppTheme.bgElevated,
+                        child: const Icon(
+                            Icons.music_note_rounded,
+                            color: AppTheme.tealPrimary,
+                            size: 22),
+                      ),
+                    ),
+                    title: Text(
+                      song.title,
+                      style: TextStyle(
+                        color: inPlaylist
+                            ? AppTheme.tealPrimary
+                            : AppTheme.textPrimary,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      song.artist,
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12),
+                    ),
                     trailing: Icon(
-                      inPlaylist ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                      color: inPlaylist ? AppTheme.tealPrimary : AppTheme.textHint,
+                      inPlaylist
+                          ? Icons.check_circle_rounded
+                          : Icons.add_circle_outline_rounded,
+                      color: inPlaylist
+                          ? AppTheme.tealPrimary
+                          : AppTheme.textHint,
                     ),
                     onTap: () {
                       if (inPlaylist) {
-                        player.removeSongFromPlaylist(playlist, song);
+                        player.removeSongFromPlaylist(
+                            playlist, song);
                       } else {
-                        player.addSongToPlaylist(playlist, song);
+                        player.addSongToPlaylist(
+                            playlist, song);
                       }
                     },
                   );
