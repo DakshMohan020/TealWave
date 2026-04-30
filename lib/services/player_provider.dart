@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 import '../models/song.dart';
 
@@ -17,7 +16,7 @@ class PlayerProvider extends ChangeNotifier {
   int currentIndex = -1;
   bool isPlaying = false;
   bool isShuffle = false;
-  RepeatMode repeatMode = RepeatMode.none;
+  PlayerRepeatMode repeatMode = PlayerRepeatMode.none;
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
   bool isLoading = false;
@@ -49,14 +48,14 @@ class PlayerProvider extends ChangeNotifier {
 
   void _onSongComplete() {
     switch (repeatMode) {
-      case RepeatMode.one:
+      case PlayerRepeatMode.one:
         _player.seek(Duration.zero);
         _player.play();
         break;
-      case RepeatMode.all:
+      case PlayerRepeatMode.all:
         playNext();
         break;
-      case RepeatMode.none:
+      case PlayerRepeatMode.none:
         if (currentIndex < queue.length - 1) {
           playNext();
         } else {
@@ -86,12 +85,10 @@ class PlayerProvider extends ChangeNotifier {
     final List<Song> songs = [];
     final List<Directory> searchDirs = [];
 
-    // Common music directories on Android
     const musicPaths = [
       '/storage/emulated/0/Music',
       '/storage/emulated/0/Download',
       '/storage/emulated/0/Downloads',
-      '/storage/emulated/0/DCIM',
       '/storage/emulated/0',
     ];
 
@@ -102,13 +99,14 @@ class PlayerProvider extends ChangeNotifier {
       }
     }
 
-    // Also check external SD card
     final sdCard = Directory('/storage');
     if (await sdCard.exists()) {
       try {
-        await for (final entity in sdCard.list(followLinks: false)) {
+        await for (final entity
+            in sdCard.list(followLinks: false)) {
           if (entity is Directory) {
-            final musicDir = Directory('${entity.path}/Music');
+            final musicDir =
+                Directory('${entity.path}/Music');
             if (await musicDir.exists()) {
               searchDirs.add(musicDir);
             }
@@ -120,7 +118,8 @@ class PlayerProvider extends ChangeNotifier {
     int idCounter = 0;
     for (final dir in searchDirs) {
       try {
-        await for (final entity in dir.list(recursive: true, followLinks: false)) {
+        await for (final entity in dir.list(
+            recursive: true, followLinks: false)) {
           if (entity is File) {
             final path = entity.path.toLowerCase();
             if (path.endsWith('.mp3') ||
@@ -129,28 +128,28 @@ class PlayerProvider extends ChangeNotifier {
                 path.endsWith('.wav') ||
                 path.endsWith('.aac') ||
                 path.endsWith('.ogg')) {
-              final file = entity;
-              final stat = await file.stat();
-              // Skip files smaller than 1MB (likely not real songs)
+              final stat = await entity.stat();
               if (stat.size < 1024 * 1024) continue;
 
-              final fileName = file.path
+              final fileName = entity.path
                   .split('/')
                   .last
-                  .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac|ogg)$',
-                      caseSensitive: false), '');
+                  .replaceAll(
+                      RegExp(
+                          r'\.(mp3|m4a|flac|wav|aac|ogg)$',
+                          caseSensitive: false),
+                      '');
 
-              // Try to parse "Artist - Title" format
               String title = fileName;
               String artist = 'Unknown Artist';
               if (fileName.contains(' - ')) {
                 final parts = fileName.split(' - ');
                 artist = parts[0].trim();
-                title = parts.sublist(1).join(' - ').trim();
+                title =
+                    parts.sublist(1).join(' - ').trim();
               }
 
-              // Avoid duplicates
-              if (!songs.any((s) => s.data == file.path)) {
+              if (!songs.any((s) => s.data == entity.path)) {
                 songs.add(Song(
                   id: idCounter++,
                   title: title,
@@ -158,7 +157,7 @@ class PlayerProvider extends ChangeNotifier {
                   album: 'Unknown Album',
                   albumId: 0,
                   duration: 0,
-                  data: file.path,
+                  data: entity.path,
                 ));
               }
             }
@@ -171,7 +170,8 @@ class PlayerProvider extends ChangeNotifier {
     return songs;
   }
 
-  Future<void> playSong(Song song, List<Song> songList, int index) async {
+  Future<void> playSong(
+      Song song, List<Song> songList, int index) async {
     queue = List.from(songList);
     currentIndex = index;
     currentSong = song;
@@ -189,9 +189,10 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> playNext() async {
     if (queue.isEmpty) return;
     if (isShuffle) {
-      final randomIndex =
-          (queue.length * (DateTime.now().millisecondsSinceEpoch % 100) ~/ 100)
-              .clamp(0, queue.length - 1);
+      final randomIndex = (queue.length *
+              (DateTime.now().millisecondsSinceEpoch % 100) ~/
+              100)
+          .clamp(0, queue.length - 1);
       currentIndex = randomIndex;
     } else {
       currentIndex = (currentIndex + 1) % queue.length;
@@ -222,11 +223,11 @@ class PlayerProvider extends ChangeNotifier {
     await _player.seek(position);
   }
 
-  RepeatMode toggleRepeat() {
+  PlayerRepeatMode toggleRepeat() {
     repeatMode = switch (repeatMode) {
-      RepeatMode.none => RepeatMode.all,
-      RepeatMode.all => RepeatMode.one,
-      RepeatMode.one => RepeatMode.none,
+      PlayerRepeatMode.none => PlayerRepeatMode.all,
+      PlayerRepeatMode.all => PlayerRepeatMode.one,
+      PlayerRepeatMode.one => PlayerRepeatMode.none,
     };
     _savePrefs();
     notifyListeners();
@@ -242,7 +243,8 @@ class PlayerProvider extends ChangeNotifier {
 
   void createPlaylist(String name) {
     playlists.add(Playlist(
-        id: DateTime.now().millisecondsSinceEpoch, name: name));
+        id: DateTime.now().millisecondsSinceEpoch,
+        name: name));
     _savePlaylists();
     notifyListeners();
   }
@@ -276,9 +278,9 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final rm = prefs.getString('repeat_mode') ?? 'none';
-    repeatMode = RepeatMode.values.firstWhere(
+    repeatMode = PlayerRepeatMode.values.firstWhere(
         (e) => e.name == rm,
-        orElse: () => RepeatMode.none);
+        orElse: () => PlayerRepeatMode.none);
     isShuffle = prefs.getBool('shuffle') ?? false;
     await _loadPlaylists();
     notifyListeners();
@@ -286,7 +288,8 @@ class PlayerProvider extends ChangeNotifier {
 
   Future<void> _savePlaylists() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = playlists.map((p) => jsonEncode(p.toJson())).toList();
+    final data =
+        playlists.map((p) => jsonEncode(p.toJson())).toList();
     prefs.setStringList('playlists', data);
   }
 
