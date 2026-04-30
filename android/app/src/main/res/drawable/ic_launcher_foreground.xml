@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer glow circle -->
+    <path
+        android:fillColor="#1A00BFA5"
+        android:pathData="M54,54m-48,0a48,48 0,1 1,96 0a48,48 0,1 1,-96 0" />
+
+    <!-- Headphone band -->
+    <path
+        android:strokeColor="#00BFA5"
+        android:strokeWidth="4"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M28,54 C28,38 38,26 54,26 C70,26 80,38 80,54" />
+
+    <!-- Left ear cup -->
+    <path
+        android:fillColor="#00BFA5"
+        android:pathData="M22,52 L22,62 C22,66 25,68 28,68 L32,68 C35,68 38,66 38,62 L38,52 C38,48 35,46 32,46 L28,46 C25,46 22,48 22,52 Z" />
+
+    <!-- Right ear cup -->
+    <path
+        android:fillColor="#00BFA5"
+        android:pathData="M86,52 L86,62 C86,66 83,68 80,68 L76,68 C73,68 70,66 70,62 L70,52 C70,48 73,46 76,46 L80,46 C83,46 86,48 86,52 Z" />
+
+    <!-- Teal glow effect left -->
+    <path
+        android:fillColor="#4000BFA5"
+        android:pathData="M18,52 L18,62 C18,68 22,72 28,72 L32,72 C38,72 42,68 42,62 L42,52 C42,46 38,42 32,42 L28,42 C22,42 18,46 18,52 Z" />
+
+    <!-- Teal glow effect right -->
+    <path
+        android:fillColor="#4000BFA5"
+        android:pathData="M90,52 L90,62 C90,68 86,72 80,72 L76,72 C70,72 66,68 66,62 L66,52 C66,46 70,42 76,42 L80,42 C86,42 90,46 90,52 Z" />
+
+</vector>
