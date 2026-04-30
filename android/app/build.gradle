@@ -7,6 +7,7 @@ plugins {
 android {
     namespace "com.tealwave.player"
     compileSdk 36
+    ndkVersion "28.2.13676358"
 
     defaultConfig {
         applicationId "com.tealwave.player"
@@ -15,14 +16,21 @@ android {
         versionCode 1
         versionName "1.0.0"
         multiDexEnabled true
-        ndkVersion "28.2.13676358"
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
             minifyEnabled false
-            shrinkResources false
+        }
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "TealWave-${variant.buildType.name}.apk"
         }
     }
 
@@ -41,5 +49,5 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22"
 }
