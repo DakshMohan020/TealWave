@@ -288,14 +288,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         IconButton(
           onPressed: player.toggleRepeat,
           icon: Icon(
-            player.repeatMode == RepeatMode.one
+            player.repeatMode == PlayerRepeatMode.one
                 ? Icons.repeat_one_rounded
                 : Icons.repeat_rounded,
           ),
           color: AppTheme.tealPrimary,
           iconSize: 22,
           style: IconButton.styleFrom(
-            backgroundColor: player.repeatMode != RepeatMode.none
+            backgroundColor: player.repeatMode != PlayerRepeatMode.none
                 ? AppTheme.tealAlpha
                 : Colors.transparent,
           ),
