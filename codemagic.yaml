@@ -1,0 +1,22 @@
+workflows:
+  android-release:
+    name: TealWave Android APK
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      android_signing:
+        - keystore_reference   # optional - for signed APK
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Build APK
+        script: flutter build apk --release --split-per-abi
+    artifacts:
+      - build/**/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - your@email.com   # ← change this to your email
+        notify:
+          success: true
+          failure: true
