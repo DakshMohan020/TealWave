@@ -9,32 +9,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # Audio playback
   just_audio: ^0.9.36
   audio_service: ^0.18.12
   audio_session: ^0.1.18
-
-  # Media scanning
-  on_audio_query: ^2.9.0
-
-  # UI & colors
   palette_generator: ^0.3.3+3
-  cached_network_image: ^3.3.1
-
-  # State management
   provider: ^6.1.1
-
-  # Storage
   shared_preferences: ^2.2.2
-
-  # Permissions
   permission_handler: ^11.1.0
-
-  # Utils
   rxdart: ^0.27.7
+  path_provider: ^2.1.2
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/
