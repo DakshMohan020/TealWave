@@ -69,14 +69,12 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> loadSongs() async {
     isLoading = true;
     notifyListeners();
-
     try {
       final songs = await _scanForMusic();
       allSongs = songs;
     } catch (e) {
       debugPrint('Error loading songs: $e');
     }
-
     isLoading = false;
     notifyListeners();
   }
@@ -85,6 +83,7 @@ class PlayerProvider extends ChangeNotifier {
     final List<Song> songs = [];
     final List<Directory> searchDirs = [];
 
+    // Internal storage paths
     const musicPaths = [
       '/storage/emulated/0/Music',
       '/storage/emulated/0/Download',
@@ -99,20 +98,33 @@ class PlayerProvider extends ChangeNotifier {
       }
     }
 
-    final sdCard = Directory('/storage');
-    if (await sdCard.exists()) {
-      try {
-        await for (final entity
-            in sdCard.list(followLinks: false)) {
-          if (entity is Directory) {
-            final musicDir =
-                Directory('${entity.path}/Music');
-            if (await musicDir.exists()) {
-              searchDirs.add(musicDir);
+    // SD card paths for Samsung devices
+    try {
+      final storageDir = Directory('/storage');
+      await for (final entity in storageDir.list()) {
+        if (entity is Directory) {
+          final name = entity.path.split('/').last;
+          // Skip emulated storage, only get real SD cards
+          if (name != 'emulated' && name != 'self') {
+            final sdPaths = [
+              entity.path,
+              '${entity.path}/Music',
+              '${entity.path}/Download',
+              '${entity.path}/Downloads',
+              '${entity.path}/Android/media',
+            ];
+            for (final path in sdPaths) {
+              final dir = Directory(path);
+              if (await dir.exists()) {
+                searchDirs.add(dir);
+                debugPrint('Found SD card path: $path');
+              }
             }
           }
         }
-      } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('SD card scan error: $e');
     }
 
     int idCounter = 0;
@@ -129,26 +141,29 @@ class PlayerProvider extends ChangeNotifier {
                 path.endsWith('.aac') ||
                 path.endsWith('.ogg')) {
               final stat = await entity.stat();
+              // Skip files smaller than 1MB
               if (stat.size < 1024 * 1024) continue;
 
               final fileName = entity.path
                   .split('/')
                   .last
                   .replaceAll(
-                      RegExp(
-                          r'\.(mp3|m4a|flac|wav|aac|ogg)$',
-                          caseSensitive: false),
-                      '');
+                    RegExp(
+                      r'\.(mp3|m4a|flac|wav|aac|ogg)$',
+                      caseSensitive: false,
+                    ),
+                    '',
+                  );
 
               String title = fileName;
               String artist = 'Unknown Artist';
               if (fileName.contains(' - ')) {
                 final parts = fileName.split(' - ');
                 artist = parts[0].trim();
-                title =
-                    parts.sublist(1).join(' - ').trim();
+                title = parts.sublist(1).join(' - ').trim();
               }
 
+              // Avoid duplicates
               if (!songs.any((s) => s.data == entity.path)) {
                 songs.add(Song(
                   id: idCounter++,
@@ -163,10 +178,13 @@ class PlayerProvider extends ChangeNotifier {
             }
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error scanning ${dir.path}: $e');
+      }
     }
 
     songs.sort((a, b) => a.title.compareTo(b.title));
+    debugPrint('Total songs found: ${songs.length}');
     return songs;
   }
 
