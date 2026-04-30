@@ -1,13 +1,13 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 import '../models/song.dart';
 
 class PlayerProvider extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
-  final OnAudioQuery _audioQuery = OnAudioQuery();
 
   List<Song> allSongs = [];
   List<Song> queue = [];
@@ -20,6 +20,7 @@ class PlayerProvider extends ChangeNotifier {
   RepeatMode repeatMode = RepeatMode.none;
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
+  bool isLoading = false;
 
   PlayerProvider() {
     _initPlayer();
@@ -67,25 +68,107 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> loadSongs() async {
-    final songs = await _audioQuery.querySongs(
-      sortType: SongSortType.TITLE,
-      orderType: OrderType.ASC_OR_SMALLER,
-      uriType: UriType.EXTERNAL,
-      ignoreCase: true,
-    );
-    allSongs = songs
-        .where((s) => s.duration != null && s.duration! > 30000 && s.isMusic == true)
-        .map((s) => Song(
-              id: s.id,
-              title: s.title,
-              artist: s.artist ?? 'Unknown Artist',
-              album: s.album ?? 'Unknown Album',
-              albumId: s.albumId ?? 0,
-              duration: s.duration ?? 0,
-              data: s.data,
-            ))
-        .toList();
+    isLoading = true;
     notifyListeners();
+
+    try {
+      final songs = await _scanForMusic();
+      allSongs = songs;
+    } catch (e) {
+      debugPrint('Error loading songs: $e');
+    }
+
+    isLoading = false;
+    notifyListeners();
+  }
+
+  Future<List<Song>> _scanForMusic() async {
+    final List<Song> songs = [];
+    final List<Directory> searchDirs = [];
+
+    // Common music directories on Android
+    const musicPaths = [
+      '/storage/emulated/0/Music',
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Downloads',
+      '/storage/emulated/0/DCIM',
+      '/storage/emulated/0',
+    ];
+
+    for (final path in musicPaths) {
+      final dir = Directory(path);
+      if (await dir.exists()) {
+        searchDirs.add(dir);
+      }
+    }
+
+    // Also check external SD card
+    final sdCard = Directory('/storage');
+    if (await sdCard.exists()) {
+      try {
+        await for (final entity in sdCard.list(followLinks: false)) {
+          if (entity is Directory) {
+            final musicDir = Directory('${entity.path}/Music');
+            if (await musicDir.exists()) {
+              searchDirs.add(musicDir);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    int idCounter = 0;
+    for (final dir in searchDirs) {
+      try {
+        await for (final entity in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            final path = entity.path.toLowerCase();
+            if (path.endsWith('.mp3') ||
+                path.endsWith('.m4a') ||
+                path.endsWith('.flac') ||
+                path.endsWith('.wav') ||
+                path.endsWith('.aac') ||
+                path.endsWith('.ogg')) {
+              final file = entity;
+              final stat = await file.stat();
+              // Skip files smaller than 1MB (likely not real songs)
+              if (stat.size < 1024 * 1024) continue;
+
+              final fileName = file.path
+                  .split('/')
+                  .last
+                  .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac|ogg)$',
+                      caseSensitive: false), '');
+
+              // Try to parse "Artist - Title" format
+              String title = fileName;
+              String artist = 'Unknown Artist';
+              if (fileName.contains(' - ')) {
+                final parts = fileName.split(' - ');
+                artist = parts[0].trim();
+                title = parts.sublist(1).join(' - ').trim();
+              }
+
+              // Avoid duplicates
+              if (!songs.any((s) => s.data == file.path)) {
+                songs.add(Song(
+                  id: idCounter++,
+                  title: title,
+                  artist: artist,
+                  album: 'Unknown Album',
+                  albumId: 0,
+                  duration: 0,
+                  data: file.path,
+                ));
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    songs.sort((a, b) => a.title.compareTo(b.title));
+    return songs;
   }
 
   Future<void> playSong(Song song, List<Song> songList, int index) async {
@@ -93,9 +176,9 @@ class PlayerProvider extends ChangeNotifier {
     currentIndex = index;
     currentSong = song;
     try {
-      await _player.setAudioSource(AudioSource.uri(
-        Uri.parse(song.data ?? ''),
-      ));
+      await _player.setAudioSource(
+        AudioSource.uri(Uri.file(song.data)),
+      );
       await _player.play();
     } catch (e) {
       debugPrint('Error playing song: $e');
@@ -105,7 +188,14 @@ class PlayerProvider extends ChangeNotifier {
 
   Future<void> playNext() async {
     if (queue.isEmpty) return;
-    currentIndex = (currentIndex + 1) % queue.length;
+    if (isShuffle) {
+      final randomIndex =
+          (queue.length * (DateTime.now().millisecondsSinceEpoch % 100) ~/ 100)
+              .clamp(0, queue.length - 1);
+      currentIndex = randomIndex;
+    } else {
+      currentIndex = (currentIndex + 1) % queue.length;
+    }
     await playSong(queue[currentIndex], queue, currentIndex);
   }
 
@@ -115,7 +205,8 @@ class PlayerProvider extends ChangeNotifier {
       await _player.seek(Duration.zero);
       return;
     }
-    currentIndex = currentIndex <= 0 ? queue.length - 1 : currentIndex - 1;
+    currentIndex =
+        currentIndex <= 0 ? queue.length - 1 : currentIndex - 1;
     await playSong(queue[currentIndex], queue, currentIndex);
   }
 
