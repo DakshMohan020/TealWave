@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:palette_generator/palette_generator.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 import '../models/song.dart';
 import '../services/player_provider.dart';
 import '../utils/theme.dart';
@@ -17,8 +15,6 @@ class NowPlayingScreen extends StatefulWidget {
 
 class _NowPlayingScreenState extends State<NowPlayingScreen>
     with SingleTickerProviderStateMixin {
-  Color _topColor = const Color(0xFF0A2A2A);
-  Color _bottomColor = AppTheme.bgPrimary;
   late AnimationController _artController;
   late Animation<double> _artScale;
   Song? _lastSong;
@@ -41,38 +37,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     super.dispose();
   }
 
-  Future<void> _extractColors(int albumId) async {
-    try {
-      final artwork = await OnAudioQuery()
-          .queryArtwork(albumId, ArtworkType.ALBUM);
-      if (artwork == null || !mounted) return;
-      final palette = await PaletteGenerator.fromImageProvider(
-          MemoryImage(artwork));
-      if (!mounted) return;
-      setState(() {
-        _topColor = _blend(
-          palette.darkVibrantColor?.color ??
-              palette.dominantColor?.color ??
-              const Color(0xFF0A2A2A),
-          Colors.black,
-          0.55,
-        );
-        _bottomColor = _blend(
-          palette.dominantColor?.color ?? AppTheme.bgPrimary,
-          Colors.black,
-          0.75,
-        );
-      });
-    } catch (_) {}
-  }
-
-  Color _blend(Color a, Color b, double ratio) => Color.fromARGB(
-        255,
-        (a.red * (1 - ratio) + b.red * ratio).round(),
-        (a.green * (1 - ratio) + b.green * ratio).round(),
-        (a.blue * (1 - ratio) + b.blue * ratio).round(),
-      );
-
   @override
   Widget build(BuildContext context) {
     return Consumer<PlayerProvider>(
@@ -81,18 +45,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         if (song != null && song != _lastSong) {
           _lastSong = song;
           _artController.forward(from: 0);
-          _extractColors(song.albumId);
         }
         return Scaffold(
-          body: AnimatedContainer(
-            duration: const Duration(milliseconds: 700),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
+          body: Container(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [_topColor, _bottomColor, AppTheme.bgPrimary],
-                stops: const [0.0, 0.5, 1.0],
+                colors: [
+                  Color(0xFF0A2A2A),
+                  Color(0xFF0D1117),
+                ],
               ),
             ),
             child: SafeArea(
@@ -100,7 +63,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                 children: [
                   _buildTopBar(context),
                   const SizedBox(height: 16),
-                  _buildAlbumArt(song),
+                  _buildAlbumArt(),
                   const SizedBox(height: 28),
                   _buildSongInfo(song),
                   const SizedBox(height: 20),
@@ -129,19 +92,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
               width: 40,
               height: 40,
               decoration: const BoxDecoration(
-                  color: AppTheme.bgElevated, shape: BoxShape.circle),
-              child: const Icon(Icons.keyboard_arrow_down_rounded,
-                  color: AppTheme.textPrimary),
+                color: AppTheme.bgElevated,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppTheme.textPrimary,
+              ),
             ),
           ),
           const Expanded(
-            child: Text('NOW PLAYING',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 11,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.w600)),
+            child: Text(
+              'NOW PLAYING',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 11,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const SizedBox(width: 40),
         ],
@@ -149,7 +119,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     );
   }
 
-  Widget _buildAlbumArt(Song? song) {
+  Widget _buildAlbumArt() {
     return ScaleTransition(
       scale: _artScale,
       child: Container(
@@ -157,9 +127,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         height: 270,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
+          color: AppTheme.bgElevated,
           boxShadow: [
             BoxShadow(
-              color: _topColor.withOpacity(0.6),
+              color: AppTheme.tealPrimary.withOpacity(0.3),
               blurRadius: 40,
               spreadRadius: 5,
               offset: const Offset(0, 10),
@@ -168,27 +139,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: song != null
-              ? QueryArtworkWidget(
-                  id: song.albumId,
-                  type: ArtworkType.ALBUM,
-                  artworkWidth: 270,
-                  artworkHeight: 270,
-                  artworkFit: BoxFit.cover,
-                  artworkBorder: BorderRadius.zero,
-                  nullArtworkWidget: _defaultArt(),
-                )
-              : _defaultArt(),
+          child: const Icon(
+            Icons.music_note_rounded,
+            color: AppTheme.tealPrimary,
+            size: 100,
+          ),
         ),
       ),
     );
   }
-
-  Widget _defaultArt() => Container(
-        color: AppTheme.bgElevated,
-        child: const Icon(Icons.album_rounded,
-            color: AppTheme.tealPrimary, size: 100),
-      );
 
   Widget _buildSongInfo(Song? song) {
     return Padding(
@@ -196,25 +155,36 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(song?.title ?? 'No song selected',
-              style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          Text(
+            song?.title ?? 'No song selected',
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 4),
-          Text(song?.artist ?? '',
-              style: const TextStyle(
-                  color: AppTheme.tealPrimary, fontSize: 15),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          Text(
+            song?.artist ?? '',
+            style: const TextStyle(
+              color: AppTheme.tealPrimary,
+              fontSize: 15,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 2),
-          Text(song?.album ?? '',
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 13),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          Text(
+            song?.album ?? '',
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -241,12 +211,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(_fmt(player.position),
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12)),
-                Text(_fmt(player.duration),
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12)),
+                Text(
+                  _fmt(player.position),
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  _fmt(player.duration),
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
@@ -274,11 +252,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         GestureDetector(
           onTap: player.playPrevious,
           child: Container(
-            width: 52, height: 52,
+            width: 52,
+            height: 52,
             decoration: const BoxDecoration(
-                color: AppTheme.bgElevated, shape: BoxShape.circle),
-            child: const Icon(Icons.skip_previous_rounded,
-                color: AppTheme.textPrimary, size: 28),
+              color: AppTheme.bgElevated,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.skip_previous_rounded,
+              color: AppTheme.textPrimary,
+              size: 28,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -287,19 +271,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         GestureDetector(
           onTap: player.playNext,
           child: Container(
-            width: 52, height: 52,
+            width: 52,
+            height: 52,
             decoration: const BoxDecoration(
-                color: AppTheme.bgElevated, shape: BoxShape.circle),
-            child: const Icon(Icons.skip_next_rounded,
-                color: AppTheme.textPrimary, size: 28),
+              color: AppTheme.bgElevated,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.skip_next_rounded,
+              color: AppTheme.textPrimary,
+              size: 28,
+            ),
           ),
         ),
         const SizedBox(width: 8),
         IconButton(
           onPressed: player.toggleRepeat,
-          icon: Icon(player.repeatMode == RepeatMode.one
-              ? Icons.repeat_one_rounded
-              : Icons.repeat_rounded),
+          icon: Icon(
+            player.repeatMode == RepeatMode.one
+                ? Icons.repeat_one_rounded
+                : Icons.repeat_rounded,
+          ),
           color: AppTheme.tealPrimary,
           iconSize: 22,
           style: IconButton.styleFrom(
@@ -328,9 +320,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
               Icon(Icons.queue_music_rounded,
                   color: AppTheme.textSecondary, size: 26),
               SizedBox(height: 4),
-              Text('Queue',
-                  style: TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 11)),
+              Text(
+                'Queue',
+                style: TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 11),
+              ),
             ],
           ),
         ),
@@ -347,9 +341,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
               Icon(Icons.lyrics_rounded,
                   color: AppTheme.textSecondary, size: 26),
               SizedBox(height: 4),
-              Text('Lyrics',
-                  style: TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 11)),
+              Text(
+                'Lyrics',
+                style: TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 11),
+              ),
             ],
           ),
         ),
