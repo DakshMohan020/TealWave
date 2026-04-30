@@ -5,7 +5,7 @@ class Song {
   final String album;
   final int albumId;
   final int duration;
-  final String? data;
+  final String data;
 
   const Song({
     required this.id,
@@ -14,7 +14,7 @@ class Song {
     required this.album,
     required this.albumId,
     required this.duration,
-    this.data,
+    required this.data,
   });
 
   String get durationFormatted {
@@ -47,7 +47,6 @@ class Playlist {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
-        'songIds': songs.map((s) => s.id).toList(),
       };
 }
 
