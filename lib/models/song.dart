@@ -50,4 +50,4 @@ class Playlist {
       };
 }
 
-enum RepeatMode { none, all, one }
+enum PlayerRepeatMode { none, all, one }
