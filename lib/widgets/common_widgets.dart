@@ -1,5 +1,5 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
 import '../services/player_provider.dart';
@@ -8,12 +8,14 @@ import '../screens/now_playing_screen.dart';
 
 class AlbumArtWidget extends StatelessWidget {
   final int albumId;
+  final String? filePath;
   final double size;
   final double borderRadius;
 
   const AlbumArtWidget({
     super.key,
-    required this.albumId,
+    this.albumId = 0,
+    this.filePath,
     this.size = 48,
     this.borderRadius = 8,
   });
@@ -22,22 +24,14 @@ class AlbumArtWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: SizedBox(
+      child: Container(
         width: size,
         height: size,
-        child: QueryArtworkWidget(
-          id: albumId,
-          type: ArtworkType.ALBUM,
-          artworkFit: BoxFit.cover,
-          artworkBorder: BorderRadius.zero,
-          nullArtworkWidget: Container(
-            color: AppTheme.bgElevated,
-            child: Icon(
-              Icons.music_note_rounded,
-              color: AppTheme.tealPrimary,
-              size: size * 0.5,
-            ),
-          ),
+        color: AppTheme.bgElevated,
+        child: Icon(
+          Icons.music_note_rounded,
+          color: AppTheme.tealPrimary,
+          size: size * 0.5,
         ),
       ),
     );
@@ -77,7 +71,16 @@ class SongTile extends StatelessWidget {
         color: isActive ? AppTheme.tealAlpha : Colors.transparent,
         child: Row(
           children: [
-            AlbumArtWidget(albumId: song.albumId, size: 48),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 48,
+                height: 48,
+                color: AppTheme.bgElevated,
+                child: const Icon(Icons.music_note_rounded,
+                    color: AppTheme.tealPrimary, size: 24),
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -163,9 +166,16 @@ class MiniPlayer extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   child: Row(
                     children: [
-                      AlbumArtWidget(
-                          albumId: player.currentSong!.albumId,
-                          size: 44),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          color: AppTheme.bgElevated,
+                          child: const Icon(Icons.music_note_rounded,
+                              color: AppTheme.tealPrimary, size: 22),
+                        ),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
