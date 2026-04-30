@@ -4,19 +4,17 @@ workflows:
     max_build_duration: 30
     environment:
       flutter: stable
-      android_signing:
-        - keystore_reference   # optional - for signed APK
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build APK
-        script: flutter build apk --release --split-per-abi
+        script: flutter build apk --debug --split-per-abi
     artifacts:
       - build/**/outputs/**/*.apk
     publishing:
       email:
         recipients:
-          - dakshmohan180@gmail.com@email.com   # ← change this to your email
+          - dakshmohan180@gmail.com
         notify:
           success: true
           failure: true
