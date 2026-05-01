@@ -98,10 +98,15 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Uint8List?> getAlbumArt(int albumId) async {
+  Future<Uint8List?> getAlbumArt(int albumId, String filePath) async {
     try {
       final result = await _channel.invokeMethod(
-          'getAlbumArt', {'albumId': albumId});
+        'getAlbumArt',
+        {
+          'albumId': albumId,
+          'filePath': filePath,
+        },
+      );
       if (result != null) {
         return Uint8List.fromList(List<int>.from(result));
       }
