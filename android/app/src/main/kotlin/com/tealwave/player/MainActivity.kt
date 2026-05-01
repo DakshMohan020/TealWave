@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterActivity
@@ -25,8 +26,7 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "getSongs" -> {
                     try {
-                        val songs = querySongs()
-                        result.success(songs)
+                        result.success(querySongs())
                     } catch (e: Exception) {
                         result.error("ERROR", e.message, null)
                     }
@@ -34,8 +34,8 @@ class MainActivity : FlutterActivity() {
                 "getAlbumArt" -> {
                     try {
                         val albumId = call.argument<Long>("albumId") ?: 0L
-                        val art = getAlbumArt(albumId)
-                        result.success(art)
+                        val filePath = call.argument<String>("filePath") ?: ""
+                        result.success(getAlbumArt(albumId, filePath))
                     } catch (e: Exception) {
                         result.success(null)
                     }
@@ -95,48 +95,78 @@ class MainActivity : FlutterActivity() {
                         if (duration < 10000) continue
                         if (data.isEmpty()) continue
 
-                        // Build content URI for playback
                         val contentUri = ContentUris.withAppendedId(
                             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                         ).toString()
 
-                        songs.add(
-                            mapOf(
-                                "id" to id,
-                                "title" to title,
-                                "artist" to artist,
-                                "album" to album,
-                                "albumId" to albumId,
-                                "duration" to duration,
-                                "data" to data,
-                                "contentUri" to contentUri
-                            )
-                        )
+                        songs.add(mapOf(
+                            "id" to id,
+                            "title" to title,
+                            "artist" to artist,
+                            "album" to album,
+                            "albumId" to albumId,
+                            "duration" to duration,
+                            "data" to data,
+                            "contentUri" to contentUri
+                        ))
                     }
                 }
             } catch (e: Exception) {
-                // Skip inaccessible URIs
+                // skip
             }
         }
         return songs
     }
 
-    private fun getAlbumArt(albumId: Long): ByteArray? {
-        return try {
-            val artUri = ContentUris.withAppendedId(
-                Uri.parse("content://media/external/audio/albumart"),
-                albumId
-            )
-            val inputStream = contentResolver.openInputStream(artUri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-            if (bitmap != null) {
-                val stream = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
-                stream.toByteArray()
-            } else null
-        } catch (e: Exception) {
-            null
+    private fun getAlbumArt(albumId: Long, filePath: String): ByteArray? {
+        // Method 1: Try MediaStore album art (works for internal storage)
+        if (albumId > 0) {
+            try {
+                val artUri = ContentUris.withAppendedId(
+                    Uri.parse("content://media/external/audio/albumart"),
+                    albumId
+                )
+                val inputStream = contentResolver.openInputStream(artUri)
+                if (inputStream != null) {
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    if (bitmap != null) {
+                        val stream = ByteArrayOutputStream()
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                        return stream.toByteArray()
+                    }
+                }
+            } catch (e: Exception) {
+                // fall through to next method
+            }
         }
+
+        // Method 2: Read embedded art directly from the MP3 file
+        // This works for SD card songs
+        if (filePath.isNotEmpty()) {
+            try {
+                val retriever = MediaMetadataRetriever()
+                retriever.setDataSource(filePath)
+                val art = retriever.embeddedPicture
+                retriever.release()
+                if (art != null) {
+                    // Compress to reduce size
+                    val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
+                    if (bitmap != null) {
+                        val stream = ByteArrayOutputStream()
+                        // Scale down if too large to save memory
+                        val scaled = if (bitmap.width > 512) {
+                            Bitmap.createScaledBitmap(bitmap, 512, 512, true)
+                        } else bitmap
+                        scaled.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                        return stream.toByteArray()
+                    }
+                }
+            } catch (e: Exception) {
+                // no art found
+            }
+        }
+
+        return null
     }
 }
