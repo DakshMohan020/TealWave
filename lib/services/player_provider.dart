@@ -126,7 +126,7 @@ class PlayerProvider extends ChangeNotifier {
 
     // Load album art
     if (song.albumId > 0) {
-      getAlbumArt(song.albumId).then((art) {
+      getAlbumArt(song.albumId, song.data).then((art) {
         currentAlbumArt = art;
         notifyListeners();
       });
