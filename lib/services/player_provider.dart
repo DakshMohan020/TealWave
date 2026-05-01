@@ -111,6 +111,10 @@ class PlayerProvider extends ChangeNotifier {
               '${entity.path}/Music',
               '${entity.path}/Download',
               '${entity.path}/Downloads',
+              '${entity.path}/Songs',
+              '${entity.path}/Song',
+              '${entity.path}/Audio',
+              '${entity.path}/audio',
               '${entity.path}/Android/media',
             ];
             for (final path in sdPaths) {
