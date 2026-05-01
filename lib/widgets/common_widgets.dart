@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
@@ -8,34 +8,49 @@ import '../screens/now_playing_screen.dart';
 
 class AlbumArtWidget extends StatelessWidget {
   final int albumId;
-  final String? filePath;
   final double size;
   final double borderRadius;
+  final Uint8List? artOverride;
 
   const AlbumArtWidget({
     super.key,
     this.albumId = 0,
-    this.filePath,
     this.size = 48,
     this.borderRadius = 8,
+    this.artOverride,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: Container(
-        width: size,
-        height: size,
+    return Consumer<PlayerProvider>(
+      builder: (context, player, _) {
+        final art = artOverride ?? player.currentAlbumArt;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: art != null
+                ? Image.memory(
+                    art,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _defaultIcon(),
+                  )
+                : _defaultIcon(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _defaultIcon() => Container(
         color: AppTheme.bgElevated,
         child: Icon(
           Icons.music_note_rounded,
           color: AppTheme.tealPrimary,
           size: size * 0.5,
         ),
-      ),
-    );
-  }
+      );
 }
 
 class SongTile extends StatelessWidget {
@@ -58,27 +73,40 @@ class SongTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        context.read<PlayerProvider>().playSong(song, songList, index);
+        context.read<PlayerProvider>().playSong(
+            song, songList, index);
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
+          MaterialPageRoute(
+              builder: (_) => const NowPlayingScreen()),
         );
       },
       onLongPress: onLongPress,
       child: Container(
         height: 64,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        color: isActive ? AppTheme.tealAlpha : Colors.transparent,
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 4),
+        color: isActive
+            ? AppTheme.tealAlpha
+            : Colors.transparent,
         child: Row(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Container(
+              child: SizedBox(
                 width: 48,
                 height: 48,
-                color: AppTheme.bgElevated,
-                child: const Icon(Icons.music_note_rounded,
-                    color: AppTheme.tealPrimary, size: 24),
+                child: isActive
+                    ? Consumer<PlayerProvider>(
+                        builder: (context, player, _) {
+                          final art = player.currentAlbumArt;
+                          return art != null
+                              ? Image.memory(art,
+                                  fit: BoxFit.cover)
+                              : _defaultTileIcon();
+                        },
+                      )
+                    : _defaultTileIcon(),
               ),
             ),
             const SizedBox(width: 12),
@@ -103,7 +131,8 @@ class SongTile extends StatelessWidget {
                   Text(
                     song.artist,
                     style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12),
+                        color: AppTheme.textSecondary,
+                        fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -120,6 +149,15 @@ class SongTile extends StatelessWidget {
       ),
     );
   }
+
+  Widget _defaultTileIcon() => Container(
+        color: AppTheme.bgElevated,
+        child: const Icon(
+          Icons.music_note_rounded,
+          color: AppTheme.tealPrimary,
+          size: 24,
+        ),
+      );
 }
 
 class MiniPlayer extends StatelessWidget {
@@ -129,11 +167,14 @@ class MiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<PlayerProvider>(
       builder: (context, player, _) {
-        if (player.currentSong == null) return const SizedBox.shrink();
+        if (player.currentSong == null) {
+          return const SizedBox.shrink();
+        }
         return GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
+            MaterialPageRoute(
+                builder: (_) => const NowPlayingScreen()),
           ),
           child: Container(
             margin: const EdgeInsets.fromLTRB(8, 0, 8, 4),
@@ -151,14 +192,16 @@ class MiniPlayer extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Progress bar
                 LinearProgressIndicator(
                   value: player.duration.inMilliseconds > 0
                       ? player.position.inMilliseconds /
                           player.duration.inMilliseconds
                       : 0,
                   backgroundColor: AppTheme.textHint,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                      AppTheme.tealPrimary),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(
+                          AppTheme.tealPrimary),
                   minHeight: 2,
                 ),
                 Padding(
@@ -166,20 +209,29 @@ class MiniPlayer extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   child: Row(
                     children: [
+                      // Album art
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Container(
+                        child: SizedBox(
                           width: 44,
                           height: 44,
-                          color: AppTheme.bgElevated,
-                          child: const Icon(Icons.music_note_rounded,
-                              color: AppTheme.tealPrimary, size: 22),
+                          child: player.currentAlbumArt != null
+                              ? Image.memory(
+                                  player.currentAlbumArt!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (_, __, ___) =>
+                                          _miniDefaultIcon(),
+                                )
+                              : _miniDefaultIcon(),
                         ),
                       ),
                       const SizedBox(width: 12),
+                      // Song info
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
                               player.currentSong!.title,
@@ -203,9 +255,11 @@ class MiniPlayer extends StatelessWidget {
                           ],
                         ),
                       ),
+                      // Controls
                       IconButton(
                         onPressed: player.playPrevious,
-                        icon: const Icon(Icons.skip_previous_rounded),
+                        icon: const Icon(
+                            Icons.skip_previous_rounded),
                         color: AppTheme.textSecondary,
                         iconSize: 26,
                         padding: EdgeInsets.zero,
@@ -215,7 +269,8 @@ class MiniPlayer extends StatelessWidget {
                       PlayPauseButton(size: 40),
                       IconButton(
                         onPressed: player.playNext,
-                        icon: const Icon(Icons.skip_next_rounded),
+                        icon:
+                            const Icon(Icons.skip_next_rounded),
                         color: AppTheme.textSecondary,
                         iconSize: 26,
                         padding: EdgeInsets.zero,
@@ -232,6 +287,15 @@ class MiniPlayer extends StatelessWidget {
       },
     );
   }
+
+  Widget _miniDefaultIcon() => Container(
+        color: AppTheme.bgElevated,
+        child: const Icon(
+          Icons.music_note_rounded,
+          color: AppTheme.tealPrimary,
+          size: 22,
+        ),
+      );
 }
 
 class PlayPauseButton extends StatelessWidget {
