@@ -81,47 +81,75 @@ class PlayerProvider extends ChangeNotifier {
 
   Future<List<Song>> _scanForMusic() async {
     final List<Song> songs = [];
-    final List<String> searchPaths = [];
+    final List<String> allDirs = [];
 
-    // Internal storage
-    searchPaths.addAll([
-      '/storage/emulated/0/Music',
-      '/storage/emulated/0/Download',
-      '/storage/emulated/0/Downloads',
-      '/storage/emulated/0/Songs',
-      '/storage/emulated/0/audio',
-      '/storage/emulated/0/Audio',
+    // Internal storage paths
+    allDirs.addAll([
+      '/storage/emulated/0',
+      '/sdcard',
+      '/mnt/sdcard',
     ]);
 
-    // Scan ALL possible SD card locations
+    // SD card - Samsung specific and generic paths
+    final sdCardDirs = <String>[];
     try {
+      // Numbered variants
+      for (int i = 0; i <= 9; i++) {
+        sdCardDirs.add('/storage/sdcard$i');
+        sdCardDirs.add('/mnt/sdcard$i');
+        sdCardDirs.add('/mnt/extsd$i');
+      }
+
+      // Common Samsung SD card mount points
+      sdCardDirs.addAll([
+        '/mnt/extsd',
+        '/mnt/external_sd',
+        '/mnt/ext_sd',
+        '/storage/external_SD',
+        '/storage/ext_sd',
+        '/storage/removable/sdcard1',
+        '/mnt/media_rw/sdcard1',
+      ]);
+
+      // Dynamic detection from /storage
       final storageDir = Directory('/storage');
-      await for (final entity in storageDir.list()) {
-        if (entity is Directory) {
-          final name = entity.path.split('/').last;
-          if (name != 'emulated' && name != 'self') {
-            searchPaths.add(entity.path);
-            searchPaths.add('${entity.path}/Songs');
-            searchPaths.add('${entity.path}/Music');
-            searchPaths.add('${entity.path}/Download');
-            searchPaths.add('${entity.path}/Downloads');
-            searchPaths.add('${entity.path}/Audio');
-            searchPaths.add('${entity.path}/audio');
-            searchPaths.add('${entity.path}/MP3');
-            searchPaths.add('${entity.path}/mp3');
-            debugPrint('SD card detected: ${entity.path}');
+      if (await storageDir.exists()) {
+        await for (final entity in storageDir.list()) {
+          if (entity is Directory) {
+            final name = entity.path.split('/').last;
+            if (name != 'emulated' && name != 'self') {
+              sdCardDirs.add(entity.path);
+              debugPrint('Found storage: ${entity.path}');
+            }
+          }
+        }
+      }
+
+      // Dynamic detection from /mnt
+      final mntDir = Directory('/mnt');
+      if (await mntDir.exists()) {
+        await for (final entity in mntDir.list()) {
+          if (entity is Directory) {
+            final name = entity.path.split('/').last;
+            if (!['sdcard', 'asec', 'obb', 'user',
+                  'shell', 'media_rw', 'secure',
+                  'runtime'].contains(name)) {
+              sdCardDirs.add(entity.path);
+            }
           }
         }
       }
     } catch (e) {
-      debugPrint('Storage scan error: $e');
+      debugPrint('SD detection error: $e');
     }
 
+    allDirs.addAll(sdCardDirs);
+
     int idCounter = 0;
-    for (final path in searchPaths) {
-      final dir = Directory(path);
+    for (final basePath in allDirs) {
+      final dir = Directory(basePath);
       if (!await dir.exists()) continue;
-      debugPrint('Scanning: $path');
+      debugPrint('Scanning: $basePath');
 
       try {
         await for (final entity in dir.list(
@@ -134,52 +162,55 @@ class PlayerProvider extends ChangeNotifier {
                 filePath.endsWith('.wav') ||
                 filePath.endsWith('.aac') ||
                 filePath.endsWith('.ogg')) {
+              try {
+                final stat = await entity.stat();
+                // 100KB minimum to filter junk files
+                if (stat.size < 100 * 1024) continue;
 
-              final stat = await entity.stat();
-              // 500KB minimum to filter out tiny files
-              if (stat.size < 500 * 1024) continue;
+                final fileName = entity.path
+                    .split('/').last
+                    .replaceAll(
+                      RegExp(
+                        r'\.(mp3|m4a|flac|wav|aac|ogg)$',
+                        caseSensitive: false,
+                      ),
+                      '',
+                    );
 
-              final fileName = entity.path
-                  .split('/').last
-                  .replaceAll(
-                    RegExp(
-                      r'\.(mp3|m4a|flac|wav|aac|ogg)$',
-                      caseSensitive: false,
-                    ),
-                    '',
-                  );
+                String title = fileName;
+                String artist = 'Unknown Artist';
+                if (fileName.contains(' - ')) {
+                  final parts = fileName.split(' - ');
+                  artist = parts[0].trim();
+                  title =
+                      parts.sublist(1).join(' - ').trim();
+                }
 
-              String title = fileName;
-              String artist = 'Unknown Artist';
-              if (fileName.contains(' - ')) {
-                final parts = fileName.split(' - ');
-                artist = parts[0].trim();
-                title = parts.sublist(1).join(' - ').trim();
-              }
-
-              // Avoid duplicates
-              if (!songs.any((s) => s.data == entity.path)) {
-                songs.add(Song(
-                  id: idCounter++,
-                  title: title,
-                  artist: artist,
-                  album: 'Unknown Album',
-                  albumId: 0,
-                  duration: 0,
-                  data: entity.path,
-                ));
-                debugPrint('Found song: ${entity.path}');
-              }
+                // Avoid duplicates
+                if (!songs.any(
+                    (s) => s.data == entity.path)) {
+                  songs.add(Song(
+                    id: idCounter++,
+                    title: title,
+                    artist: artist,
+                    album: 'Unknown Album',
+                    albumId: 0,
+                    duration: 0,
+                    data: entity.path,
+                  ));
+                  debugPrint('Found: ${entity.path}');
+                }
+              } catch (_) {}
             }
           }
         }
       } catch (e) {
-        debugPrint('Error scanning $path: $e');
+        debugPrint('Scan error $basePath: $e');
       }
     }
 
     songs.sort((a, b) => a.title.compareTo(b.title));
-    debugPrint('Total songs found: ${songs.length}');
+    debugPrint('Total songs: ${songs.length}');
     return songs;
   }
 
@@ -194,7 +225,7 @@ class PlayerProvider extends ChangeNotifier {
       );
       await _player.play();
     } catch (e) {
-      debugPrint('Error playing song: $e');
+      debugPrint('Error playing: $e');
     }
     notifyListeners();
   }
