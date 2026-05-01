@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
@@ -22,6 +23,7 @@ class PlayerProvider extends ChangeNotifier {
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
   bool isLoading = false;
+  Uint8List? currentAlbumArt;
 
   PlayerProvider() {
     _initPlayer();
@@ -72,10 +74,8 @@ class PlayerProvider extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
     try {
-      // Use native Android MediaStore via platform channel
       final List<dynamic> result =
           await _channel.invokeMethod('getSongs');
-
       allSongs = result.map((item) {
         final map = Map<String, dynamic>.from(item as Map);
         return Song(
@@ -86,101 +86,29 @@ class PlayerProvider extends ChangeNotifier {
           albumId: (map['albumId'] as num).toInt(),
           duration: (map['duration'] as num).toInt(),
           data: map['data'] as String? ?? '',
+          contentUri: map['contentUri'] as String? ?? '',
         );
       }).where((s) => s.data.isNotEmpty).toList();
-
-      debugPrint('Songs loaded via MediaStore: ${allSongs.length}');
+      debugPrint('Songs loaded: ${allSongs.length}');
     } catch (e) {
       debugPrint('MediaStore error: $e');
-      // Fallback to file scan if MediaStore fails
       allSongs = await _scanForMusic();
     }
     isLoading = false;
     notifyListeners();
   }
 
-  // Fallback file scanner
-  Future<List<Song>> _scanForMusic() async {
-    final List<Song> songs = [];
-    final List<String> allDirs = [
-      '/storage/emulated/0/Music',
-      '/storage/emulated/0/Download',
-      '/storage/emulated/0/Downloads',
-      '/storage/emulated/0/Songs',
-    ];
-
+  Future<Uint8List?> getAlbumArt(int albumId) async {
     try {
-      final storageDir = Directory('/storage');
-      if (await storageDir.exists()) {
-        await for (final entity in storageDir.list()) {
-          if (entity is Directory) {
-            final name = entity.path.split('/').last;
-            if (name != 'emulated' && name != 'self') {
-              allDirs.add(entity.path);
-              allDirs.add('${entity.path}/Songs');
-              allDirs.add('${entity.path}/Music');
-            }
-          }
-        }
+      final result = await _channel.invokeMethod(
+          'getAlbumArt', {'albumId': albumId});
+      if (result != null) {
+        return Uint8List.fromList(List<int>.from(result));
       }
     } catch (e) {
-      debugPrint('Storage scan error: $e');
+      debugPrint('Album art error: $e');
     }
-
-    int idCounter = 0;
-    for (final path in allDirs) {
-      final dir = Directory(path);
-      if (!await dir.exists()) continue;
-      try {
-        await for (final entity
-            in dir.list(recursive: true, followLinks: false)) {
-          if (entity is File) {
-            final filePath = entity.path.toLowerCase();
-            if (filePath.endsWith('.mp3') ||
-                filePath.endsWith('.m4a') ||
-                filePath.endsWith('.flac') ||
-                filePath.endsWith('.wav') ||
-                filePath.endsWith('.aac') ||
-                filePath.endsWith('.ogg')) {
-              try {
-                final stat = await entity.stat();
-                if (stat.size < 100 * 1024) continue;
-                final fileName = entity.path
-                    .split('/').last
-                    .replaceAll(
-                      RegExp(
-                        r'\.(mp3|m4a|flac|wav|aac|ogg)$',
-                        caseSensitive: false,
-                      ),
-                      '',
-                    );
-                String title = fileName;
-                String artist = 'Unknown Artist';
-                if (fileName.contains(' - ')) {
-                  final parts = fileName.split(' - ');
-                  artist = parts[0].trim();
-                  title = parts.sublist(1).join(' - ').trim();
-                }
-                if (!songs.any((s) => s.data == entity.path)) {
-                  songs.add(Song(
-                    id: idCounter++,
-                    title: title,
-                    artist: artist,
-                    album: 'Unknown Album',
-                    albumId: 0,
-                    duration: 0,
-                    data: entity.path,
-                  ));
-                }
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    songs.sort((a, b) => a.title.compareTo(b.title));
-    return songs;
+    return null;
   }
 
   Future<void> playSong(
@@ -188,13 +116,36 @@ class PlayerProvider extends ChangeNotifier {
     queue = List.from(songList);
     currentIndex = index;
     currentSong = song;
+    currentAlbumArt = null;
+    notifyListeners();
+
+    // Load album art
+    if (song.albumId > 0) {
+      getAlbumArt(song.albumId).then((art) {
+        currentAlbumArt = art;
+        notifyListeners();
+      });
+    }
+
     try {
-      await _player.setAudioSource(
-        AudioSource.uri(Uri.file(song.data)),
-      );
+      // Try content URI first (works with SD card),
+      // fall back to file path
+      final uri = song.contentUri.isNotEmpty
+          ? Uri.parse(song.contentUri)
+          : Uri.file(song.data);
+
+      await _player.setAudioSource(AudioSource.uri(uri));
       await _player.play();
     } catch (e) {
-      debugPrint('Error playing: $e');
+      debugPrint('Error playing with content URI: $e');
+      // Try file path as fallback
+      try {
+        await _player.setAudioSource(
+            AudioSource.uri(Uri.file(song.data)));
+        await _player.play();
+      } catch (e2) {
+        debugPrint('Error playing with file path: $e2');
+      }
     }
     notifyListeners();
   }
@@ -316,6 +267,78 @@ class PlayerProvider extends ChangeNotifier {
         name: map['name'] as String,
       );
     }).toList();
+  }
+
+  // Fallback file scanner
+  Future<List<Song>> _scanForMusic() async {
+    final List<Song> songs = [];
+    final List<String> allDirs = [
+      '/storage/emulated/0/Music',
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Downloads',
+      '/storage/emulated/0/Songs',
+    ];
+    try {
+      final storageDir = Directory('/storage');
+      if (await storageDir.exists()) {
+        await for (final entity in storageDir.list()) {
+          if (entity is Directory) {
+            final name = entity.path.split('/').last;
+            if (name != 'emulated' && name != 'self') {
+              allDirs.add(entity.path);
+              allDirs.add('${entity.path}/Songs');
+              allDirs.add('${entity.path}/Music');
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    int idCounter = 0;
+    for (final path in allDirs) {
+      final dir = Directory(path);
+      if (!await dir.exists()) continue;
+      try {
+        await for (final entity
+            in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            final fp = entity.path.toLowerCase();
+            if (fp.endsWith('.mp3') || fp.endsWith('.m4a') ||
+                fp.endsWith('.flac') || fp.endsWith('.wav') ||
+                fp.endsWith('.aac') || fp.endsWith('.ogg')) {
+              try {
+                final stat = await entity.stat();
+                if (stat.size < 100 * 1024) continue;
+                final fileName = entity.path.split('/').last
+                    .replaceAll(RegExp(
+                      r'\.(mp3|m4a|flac|wav|aac|ogg)$',
+                      caseSensitive: false), '');
+                String title = fileName;
+                String artist = 'Unknown Artist';
+                if (fileName.contains(' - ')) {
+                  final parts = fileName.split(' - ');
+                  artist = parts[0].trim();
+                  title = parts.sublist(1).join(' - ').trim();
+                }
+                if (!songs.any((s) => s.data == entity.path)) {
+                  songs.add(Song(
+                    id: idCounter++,
+                    title: title,
+                    artist: artist,
+                    album: 'Unknown Album',
+                    albumId: 0,
+                    duration: 0,
+                    data: entity.path,
+                  ));
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    songs.sort((a, b) => a.title.compareTo(b.title));
+    return songs;
   }
 
   @override
