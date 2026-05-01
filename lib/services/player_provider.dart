@@ -97,7 +97,7 @@ class PlayerProvider extends ChangeNotifier {
     isLoading = false;
     notifyListeners();
   }
-
+  
   Future<Uint8List?> getAlbumArt(int albumId, String filePath) async {
     try {
       final result = await _channel.invokeMethod(
