@@ -81,76 +81,66 @@ class PlayerProvider extends ChangeNotifier {
 
   Future<List<Song>> _scanForMusic() async {
     final List<Song> songs = [];
-    final List<Directory> searchDirs = [];
+    final List<String> searchPaths = [];
 
-    // Internal storage paths
-    const musicPaths = [
+    // Internal storage
+    searchPaths.addAll([
       '/storage/emulated/0/Music',
       '/storage/emulated/0/Download',
       '/storage/emulated/0/Downloads',
-      '/storage/emulated/0',
-    ];
+      '/storage/emulated/0/Songs',
+      '/storage/emulated/0/audio',
+      '/storage/emulated/0/Audio',
+    ]);
 
-    for (final path in musicPaths) {
-      final dir = Directory(path);
-      if (await dir.exists()) {
-        searchDirs.add(dir);
-      }
-    }
-
-    // SD card paths for Samsung devices
+    // Scan ALL possible SD card locations
     try {
       final storageDir = Directory('/storage');
       await for (final entity in storageDir.list()) {
         if (entity is Directory) {
           final name = entity.path.split('/').last;
-          // Skip emulated storage, only get real SD cards
           if (name != 'emulated' && name != 'self') {
-            final sdPaths = [
-              entity.path,
-              '${entity.path}/Music',
-              '${entity.path}/Download',
-              '${entity.path}/Downloads',
-              '${entity.path}/Songs',
-              '${entity.path}/Song',
-              '${entity.path}/Audio',
-              '${entity.path}/audio',
-              '${entity.path}/Android/media',
-            ];
-            for (final path in sdPaths) {
-              final dir = Directory(path);
-              if (await dir.exists()) {
-                searchDirs.add(dir);
-                debugPrint('Found SD card path: $path');
-              }
-            }
+            searchPaths.add(entity.path);
+            searchPaths.add('${entity.path}/Songs');
+            searchPaths.add('${entity.path}/Music');
+            searchPaths.add('${entity.path}/Download');
+            searchPaths.add('${entity.path}/Downloads');
+            searchPaths.add('${entity.path}/Audio');
+            searchPaths.add('${entity.path}/audio');
+            searchPaths.add('${entity.path}/MP3');
+            searchPaths.add('${entity.path}/mp3');
+            debugPrint('SD card detected: ${entity.path}');
           }
         }
       }
     } catch (e) {
-      debugPrint('SD card scan error: $e');
+      debugPrint('Storage scan error: $e');
     }
 
     int idCounter = 0;
-    for (final dir in searchDirs) {
+    for (final path in searchPaths) {
+      final dir = Directory(path);
+      if (!await dir.exists()) continue;
+      debugPrint('Scanning: $path');
+
       try {
         await for (final entity in dir.list(
             recursive: true, followLinks: false)) {
           if (entity is File) {
-            final path = entity.path.toLowerCase();
-            if (path.endsWith('.mp3') ||
-                path.endsWith('.m4a') ||
-                path.endsWith('.flac') ||
-                path.endsWith('.wav') ||
-                path.endsWith('.aac') ||
-                path.endsWith('.ogg')) {
+            final filePath = entity.path.toLowerCase();
+            if (filePath.endsWith('.mp3') ||
+                filePath.endsWith('.m4a') ||
+                filePath.endsWith('.flac') ||
+                filePath.endsWith('.wav') ||
+                filePath.endsWith('.aac') ||
+                filePath.endsWith('.ogg')) {
+
               final stat = await entity.stat();
-              // Skip files smaller than 1MB
-              if (stat.size < 1024 * 1024) continue;
+              // 500KB minimum to filter out tiny files
+              if (stat.size < 500 * 1024) continue;
 
               final fileName = entity.path
-                  .split('/')
-                  .last
+                  .split('/').last
                   .replaceAll(
                     RegExp(
                       r'\.(mp3|m4a|flac|wav|aac|ogg)$',
@@ -178,12 +168,13 @@ class PlayerProvider extends ChangeNotifier {
                   duration: 0,
                   data: entity.path,
                 ));
+                debugPrint('Found song: ${entity.path}');
               }
             }
           }
         }
       } catch (e) {
-        debugPrint('Error scanning ${dir.path}: $e');
+        debugPrint('Error scanning $path: $e');
       }
     }
 
