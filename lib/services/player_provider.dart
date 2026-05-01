@@ -97,7 +97,7 @@ class PlayerProvider extends ChangeNotifier {
     isLoading = false;
     notifyListeners();
   }
-  
+
   Future<Uint8List?> getAlbumArt(int albumId, String filePath) async {
     try {
       final result = await _channel.invokeMethod(
@@ -108,7 +108,7 @@ class PlayerProvider extends ChangeNotifier {
         },
       );
       if (result != null) {
-        return Uint8List.fromList(List<int>.from(result));
+        return Uint8List.fromList(List<int>.from(result as List));
       }
     } catch (e) {
       debugPrint('Album art error: $e');
@@ -124,26 +124,17 @@ class PlayerProvider extends ChangeNotifier {
     currentAlbumArt = null;
     notifyListeners();
 
-    // Load album art
-    if (song.albumId > 0) {
-      getAlbumArt(song.albumId, song.data).then((art) {
-        currentAlbumArt = art;
-        notifyListeners();
-      });
-    }
+    // Load album art using both albumId AND file path
+    _loadAlbumArt(song);
 
     try {
-      // Try content URI first (works with SD card),
-      // fall back to file path
       final uri = song.contentUri.isNotEmpty
           ? Uri.parse(song.contentUri)
           : Uri.file(song.data);
-
       await _player.setAudioSource(AudioSource.uri(uri));
       await _player.play();
     } catch (e) {
       debugPrint('Error playing with content URI: $e');
-      // Try file path as fallback
       try {
         await _player.setAudioSource(
             AudioSource.uri(Uri.file(song.data)));
@@ -153,6 +144,28 @@ class PlayerProvider extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  Future<void> _loadAlbumArt(Song song) async {
+    try {
+      // Try with albumId first
+      Uint8List? art;
+      if (song.albumId > 0) {
+        art = await getAlbumArt(song.albumId, song.data);
+      }
+      // If no art found, try with just file path
+      art ??= await getAlbumArt(0, song.data);
+
+      if (art != null && art.isNotEmpty) {
+        currentAlbumArt = art;
+        notifyListeners();
+        debugPrint('Album art loaded successfully');
+      } else {
+        debugPrint('No album art found for: ${song.title}');
+      }
+    } catch (e) {
+      debugPrint('Error loading album art: $e');
+    }
   }
 
   Future<void> playNext() async {
@@ -274,7 +287,6 @@ class PlayerProvider extends ChangeNotifier {
     }).toList();
   }
 
-  // Fallback file scanner
   Future<List<Song>> _scanForMusic() async {
     final List<Song> songs = [];
     final List<String> allDirs = [
@@ -304,26 +316,35 @@ class PlayerProvider extends ChangeNotifier {
       final dir = Directory(path);
       if (!await dir.exists()) continue;
       try {
-        await for (final entity
-            in dir.list(recursive: true, followLinks: false)) {
+        await for (final entity in dir.list(
+            recursive: true, followLinks: false)) {
           if (entity is File) {
             final fp = entity.path.toLowerCase();
-            if (fp.endsWith('.mp3') || fp.endsWith('.m4a') ||
-                fp.endsWith('.flac') || fp.endsWith('.wav') ||
-                fp.endsWith('.aac') || fp.endsWith('.ogg')) {
+            if (fp.endsWith('.mp3') ||
+                fp.endsWith('.m4a') ||
+                fp.endsWith('.flac') ||
+                fp.endsWith('.wav') ||
+                fp.endsWith('.aac') ||
+                fp.endsWith('.ogg')) {
               try {
                 final stat = await entity.stat();
                 if (stat.size < 100 * 1024) continue;
-                final fileName = entity.path.split('/').last
-                    .replaceAll(RegExp(
-                      r'\.(mp3|m4a|flac|wav|aac|ogg)$',
-                      caseSensitive: false), '');
+                final fileName = entity.path
+                    .split('/').last
+                    .replaceAll(
+                      RegExp(
+                        r'\.(mp3|m4a|flac|wav|aac|ogg)$',
+                        caseSensitive: false,
+                      ),
+                      '',
+                    );
                 String title = fileName;
                 String artist = 'Unknown Artist';
                 if (fileName.contains(' - ')) {
                   final parts = fileName.split(' - ');
                   artist = parts[0].trim();
-                  title = parts.sublist(1).join(' - ').trim();
+                  title =
+                      parts.sublist(1).join(' - ').trim();
                 }
                 if (!songs.any((s) => s.data == entity.path)) {
                   songs.add(Song(
