@@ -6,6 +6,7 @@ class Song {
   final int albumId;
   final int duration;
   final String data;
+  final String contentUri;
 
   const Song({
     required this.id,
@@ -15,6 +16,7 @@ class Song {
     required this.albumId,
     required this.duration,
     required this.data,
+    this.contentUri = '',
   });
 
   String get durationFormatted {
