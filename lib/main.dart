@@ -64,13 +64,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _requestPermissions() async {
     PermissionStatus status;
-    if (await Permission.audio.isGranted) {
+    // Request storage permission for Android 8 (J7 Duo)
+    if (await Permission.storage.isGranted) {
       status = PermissionStatus.granted;
     } else {
+      status = await Permission.storage.request();
+    }
+    if (status.isDenied) {
       status = await Permission.audio.request();
-      if (status.isDenied) {
-        status = await Permission.storage.request();
-      }
     }
     if (status.isGranted) {
       setState(() => _permissionGranted = true);
