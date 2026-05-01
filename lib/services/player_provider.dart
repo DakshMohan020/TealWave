@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -7,6 +8,7 @@ import '../models/song.dart';
 
 class PlayerProvider extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
+  static const _channel = MethodChannel('com.tealwave.player/media');
 
   List<Song> allSongs = [];
   List<Song> queue = [];
@@ -70,90 +72,68 @@ class PlayerProvider extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
     try {
-      final songs = await _scanForMusic();
-      allSongs = songs;
+      // Use native Android MediaStore via platform channel
+      final List<dynamic> result =
+          await _channel.invokeMethod('getSongs');
+
+      allSongs = result.map((item) {
+        final map = Map<String, dynamic>.from(item as Map);
+        return Song(
+          id: (map['id'] as num).toInt(),
+          title: map['title'] as String? ?? 'Unknown',
+          artist: map['artist'] as String? ?? 'Unknown Artist',
+          album: map['album'] as String? ?? 'Unknown Album',
+          albumId: (map['albumId'] as num).toInt(),
+          duration: (map['duration'] as num).toInt(),
+          data: map['data'] as String? ?? '',
+        );
+      }).where((s) => s.data.isNotEmpty).toList();
+
+      debugPrint('Songs loaded via MediaStore: ${allSongs.length}');
     } catch (e) {
-      debugPrint('Error loading songs: $e');
+      debugPrint('MediaStore error: $e');
+      // Fallback to file scan if MediaStore fails
+      allSongs = await _scanForMusic();
     }
     isLoading = false;
     notifyListeners();
   }
 
+  // Fallback file scanner
   Future<List<Song>> _scanForMusic() async {
     final List<Song> songs = [];
-    final List<String> allDirs = [];
+    final List<String> allDirs = [
+      '/storage/emulated/0/Music',
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Downloads',
+      '/storage/emulated/0/Songs',
+    ];
 
-    // Internal storage paths
-    allDirs.addAll([
-      '/storage/emulated/0',
-      '/sdcard',
-      '/mnt/sdcard',
-    ]);
-
-    // SD card - Samsung specific and generic paths
-    final sdCardDirs = <String>[];
     try {
-      // Numbered variants
-      for (int i = 0; i <= 9; i++) {
-        sdCardDirs.add('/storage/sdcard$i');
-        sdCardDirs.add('/mnt/sdcard$i');
-        sdCardDirs.add('/mnt/extsd$i');
-      }
-
-      // Common Samsung SD card mount points
-      sdCardDirs.addAll([
-        '/mnt/extsd',
-        '/mnt/external_sd',
-        '/mnt/ext_sd',
-        '/storage/external_SD',
-        '/storage/ext_sd',
-        '/storage/removable/sdcard1',
-        '/mnt/media_rw/sdcard1',
-      ]);
-
-      // Dynamic detection from /storage
       final storageDir = Directory('/storage');
       if (await storageDir.exists()) {
         await for (final entity in storageDir.list()) {
           if (entity is Directory) {
             final name = entity.path.split('/').last;
             if (name != 'emulated' && name != 'self') {
-              sdCardDirs.add(entity.path);
-              debugPrint('Found storage: ${entity.path}');
-            }
-          }
-        }
-      }
-
-      // Dynamic detection from /mnt
-      final mntDir = Directory('/mnt');
-      if (await mntDir.exists()) {
-        await for (final entity in mntDir.list()) {
-          if (entity is Directory) {
-            final name = entity.path.split('/').last;
-            if (!['sdcard', 'asec', 'obb', 'user',
-                  'shell', 'media_rw', 'secure',
-                  'runtime'].contains(name)) {
-              sdCardDirs.add(entity.path);
+              allDirs.add(entity.path);
+              allDirs.add('${entity.path}/Songs');
+              allDirs.add('${entity.path}/Music');
             }
           }
         }
       }
     } catch (e) {
-      debugPrint('SD detection error: $e');
+      debugPrint('Storage scan error: $e');
     }
 
-    allDirs.addAll(sdCardDirs);
-
     int idCounter = 0;
-    for (final basePath in allDirs) {
-      final dir = Directory(basePath);
+    for (final path in allDirs) {
+      final dir = Directory(path);
       if (!await dir.exists()) continue;
-      debugPrint('Scanning: $basePath');
-
       try {
-        await for (final entity in dir.list(
-            recursive: true, followLinks: false)) {
+        await for (final entity
+            in dir.list(recursive: true, followLinks: false)) {
           if (entity is File) {
             final filePath = entity.path.toLowerCase();
             if (filePath.endsWith('.mp3') ||
@@ -164,9 +144,7 @@ class PlayerProvider extends ChangeNotifier {
                 filePath.endsWith('.ogg')) {
               try {
                 final stat = await entity.stat();
-                // 100KB minimum to filter junk files
                 if (stat.size < 100 * 1024) continue;
-
                 final fileName = entity.path
                     .split('/').last
                     .replaceAll(
@@ -176,19 +154,14 @@ class PlayerProvider extends ChangeNotifier {
                       ),
                       '',
                     );
-
                 String title = fileName;
                 String artist = 'Unknown Artist';
                 if (fileName.contains(' - ')) {
                   final parts = fileName.split(' - ');
                   artist = parts[0].trim();
-                  title =
-                      parts.sublist(1).join(' - ').trim();
+                  title = parts.sublist(1).join(' - ').trim();
                 }
-
-                // Avoid duplicates
-                if (!songs.any(
-                    (s) => s.data == entity.path)) {
+                if (!songs.any((s) => s.data == entity.path)) {
                   songs.add(Song(
                     id: idCounter++,
                     title: title,
@@ -198,19 +171,15 @@ class PlayerProvider extends ChangeNotifier {
                     duration: 0,
                     data: entity.path,
                   ));
-                  debugPrint('Found: ${entity.path}');
                 }
               } catch (_) {}
             }
           }
         }
-      } catch (e) {
-        debugPrint('Scan error $basePath: $e');
-      }
+      } catch (_) {}
     }
 
     songs.sort((a, b) => a.title.compareTo(b.title));
-    debugPrint('Total songs: ${songs.length}');
     return songs;
   }
 
